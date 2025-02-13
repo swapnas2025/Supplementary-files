@@ -1,0 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jul 24 11:52:03 2023
+
+@author: HI
+"""
+
+import preprocess
+import segmentation
+import classification
