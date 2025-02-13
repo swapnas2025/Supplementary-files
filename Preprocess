@@ -1,0 +1,937 @@
+
+
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter
+import matplotlib.pyplot as plt 
+### open the image (PLACE YOUR OWN IMAGE HERE)
+image_org = Image.open('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000131.png')
+def rgb2gray(rgb):
+    if(len(rgb.shape) == 3):
+        return np.uint8(np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140]))
+    else:#already a grayscale
+        return rgb
+    
+image = np.array(image_org)
+grayscale_image = rgb2gray(image) #outputs a grayscaled image
+def calculate_median(array):
+    """Return the median of 1-d array"""
+    sorted_array = np.sort(array) #timsort (O(nlogn))
+    median = sorted_array[len(array)//2]
+    return median
+def level_A(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_med < z_max):
+        return level_B(z_min, z_med, z_max, z_xy, S_xy, S_max)
+    else:
+        S_xy += 2 #increase the size of S_xy to the next odd value.
+        if(S_xy <= S_max): #repeat process
+            return level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+        else:
+            return z_med
+def level_B(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_xy < z_max):
+        return z_xy
+    else:
+        return z_med
+def amf(image, initial_window, max_window):
+    """runs the Adaptive Median Filter proess on an image"""
+    xlength, ylength = image.shape #get the shape of the image.
+    
+    z_min, z_med, z_max, z_xy = 0, 0, 0, 0
+    S_max = max_window
+    S_xy = initial_window #dynamically to grow
+    
+    output_image = image.copy()
+    
+    for row in range(S_xy, xlength-S_xy-1):
+        for col in range(S_xy, ylength-S_xy-1):
+            filter_window = image[row - S_xy : row + S_xy + 1, col - S_xy : col + S_xy + 1] #filter window
+            target = filter_window.reshape(-1) #make 1-dimensional
+            z_min = np.min(target) #min of intensity values
+            z_max = np.max(target) #max of intensity values
+            z_med = calculate_median(target) #median of intensity values
+            z_xy = image[row, col] #current intensity
+            
+            #Level A & B
+            new_intensity = level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+            output_image[row, col] = new_intensity
+    return output_image
+output = amf(grayscale_image, 3, 11)
+plt.axis('off')
+plt.imshow(image_org,cmap="gray")
+plt.show()
+# Display the images
+#plt.imshow(output,cmap="gray") 
+#plt.show()
+#plt.show()
+    
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+	
+# Read the image 
+img =output
+
+
+# Obtain number of rows and columns 
+# of the image 
+m, n = img.shape 
+
+# Develop Averaging filter(3, 3) mask 
+mask = np.ones([3, 3], dtype = int) 
+mask = mask / 9
+
+# Convolve the 3X3 mask over the image 
+img_new = np.zeros([m, n]) 
+
+for i in range(1, m-1): 
+	for j in range(1, n-1): 
+		temp = img[i-1, j-1]*mask[0, 0]+img[i-1, j]*mask[0, 1]+img[i-1, j + 1]*mask[0, 2]+img[i, j-1]*mask[1, 0]+ img[i, j]*mask[1, 1]+img[i, j + 1]*mask[1, 2]+img[i + 1, j-1]*mask[2, 0]+img[i + 1, j]*mask[2, 1]+img[i + 1, j + 1]*mask[2, 2] 
+		
+		img_new[i, j]= temp 
+		
+img_new = img_new.astype(np.uint8) 
+
+
+# Display the images
+plt.imshow(img,cmap='gray') 
+#plt.show()
+plt.axis('off')
+# Display the images
+plt.imshow(img_new,cmap='gray') 
+plt.show()
+#==============================================
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 19 10:16:58 2023
+
+@author: HI
+"""
+
+
+
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter
+import matplotlib.pyplot as plt 
+### open the image (PLACE YOUR OWN IMAGE HERE)
+image_org = Image.open('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000115 (5).png')
+def rgb2gray(rgb):
+    if(len(rgb.shape) == 3):
+        return np.uint8(np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140]))
+    else:#already a grayscale
+        return rgb
+    
+image = np.array(image_org)
+grayscale_image = rgb2gray(image) #outputs a grayscaled image
+def calculate_median(array):
+    """Return the median of 1-d array"""
+    sorted_array = np.sort(array) #timsort (O(nlogn))
+    median = sorted_array[len(array)//2]
+    return median
+def level_A(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_med < z_max):
+        return level_B(z_min, z_med, z_max, z_xy, S_xy, S_max)
+    else:
+        S_xy += 2 #increase the size of S_xy to the next odd value.
+        if(S_xy <= S_max): #repeat process
+            return level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+        else:
+            return z_med
+def level_B(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_xy < z_max):
+        return z_xy
+    else:
+        return z_med
+def amf(image, initial_window, max_window):
+    """runs the Adaptive Median Filter proess on an image"""
+    xlength, ylength = image.shape #get the shape of the image.
+    
+    z_min, z_med, z_max, z_xy = 0, 0, 0, 0
+    S_max = max_window
+    S_xy = initial_window #dynamically to grow
+    
+    output_image = image.copy()
+    
+    for row in range(S_xy, xlength-S_xy-1):
+        for col in range(S_xy, ylength-S_xy-1):
+            filter_window = image[row - S_xy : row + S_xy + 1, col - S_xy : col + S_xy + 1] #filter window
+            target = filter_window.reshape(-1) #make 1-dimensional
+            z_min = np.min(target) #min of intensity values
+            z_max = np.max(target) #max of intensity values
+            z_med = calculate_median(target) #median of intensity values
+            z_xy = image[row, col] #current intensity
+            
+            #Level A & B
+            new_intensity = level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+            output_image[row, col] = new_intensity
+    return output_image
+output = amf(grayscale_image, 3, 11)
+plt.axis('off')
+plt.imshow(image_org,cmap="gray")
+plt.show()
+# Display the images
+#plt.imshow(output,cmap="gray") 
+#plt.show()
+#plt.show()
+    
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+	
+# Read the image 
+img =output
+
+
+# Obtain number of rows and columns 
+# of the image 
+m, n = img.shape 
+
+# Develop Averaging filter(3, 3) mask 
+mask = np.ones([3, 3], dtype = int) 
+mask = mask / 9
+
+# Convolve the 3X3 mask over the image 
+img_new = np.zeros([m, n]) 
+
+for i in range(1, m-1): 
+	for j in range(1, n-1): 
+		temp = img[i-1, j-1]*mask[0, 0]+img[i-1, j]*mask[0, 1]+img[i-1, j + 1]*mask[0, 2]+img[i, j-1]*mask[1, 0]+ img[i, j]*mask[1, 1]+img[i, j + 1]*mask[1, 2]+img[i + 1, j-1]*mask[2, 0]+img[i + 1, j]*mask[2, 1]+img[i + 1, j + 1]*mask[2, 2] 
+		
+		img_new[i, j]= temp 
+		
+img_new = img_new.astype(np.uint8) 
+
+
+# Display the images
+plt.imshow(img,cmap='gray') 
+#plt.show()
+plt.axis('off')
+# Display the images
+plt.imshow(img_new,cmap='gray') 
+plt.show()
+#==========================================
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 19 10:16:58 2023
+
+@author: HI
+"""
+
+
+
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter
+import matplotlib.pyplot as plt 
+### open the image (PLACE YOUR OWN IMAGE HERE)
+image_org = Image.open('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000118 (2).png')
+def rgb2gray(rgb):
+    if(len(rgb.shape) == 3):
+        return np.uint8(np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140]))
+    else:#already a grayscale
+        return rgb
+    
+image = np.array(image_org)
+grayscale_image = rgb2gray(image) #outputs a grayscaled image
+def calculate_median(array):
+    """Return the median of 1-d array"""
+    sorted_array = np.sort(array) #timsort (O(nlogn))
+    median = sorted_array[len(array)//2]
+    return median
+def level_A(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_med < z_max):
+        return level_B(z_min, z_med, z_max, z_xy, S_xy, S_max)
+    else:
+        S_xy += 2 #increase the size of S_xy to the next odd value.
+        if(S_xy <= S_max): #repeat process
+            return level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+        else:
+            return z_med
+def level_B(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_xy < z_max):
+        return z_xy
+    else:
+        return z_med
+def amf(image, initial_window, max_window):
+    """runs the Adaptive Median Filter proess on an image"""
+    xlength, ylength = image.shape #get the shape of the image.
+    
+    z_min, z_med, z_max, z_xy = 0, 0, 0, 0
+    S_max = max_window
+    S_xy = initial_window #dynamically to grow
+    
+    output_image = image.copy()
+    
+    for row in range(S_xy, xlength-S_xy-1):
+        for col in range(S_xy, ylength-S_xy-1):
+            filter_window = image[row - S_xy : row + S_xy + 1, col - S_xy : col + S_xy + 1] #filter window
+            target = filter_window.reshape(-1) #make 1-dimensional
+            z_min = np.min(target) #min of intensity values
+            z_max = np.max(target) #max of intensity values
+            z_med = calculate_median(target) #median of intensity values
+            z_xy = image[row, col] #current intensity
+            
+            #Level A & B
+            new_intensity = level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+            output_image[row, col] = new_intensity
+    return output_image
+output = amf(grayscale_image, 3, 11)
+plt.axis('off')
+plt.imshow(image_org,cmap="gray")
+plt.show()
+# Display the images
+#plt.imshow(output,cmap="gray") 
+#plt.show()
+#plt.show()
+    
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+	
+# Read the image 
+img =output
+
+
+# Obtain number of rows and columns 
+# of the image 
+m, n = img.shape 
+
+# Develop Averaging filter(3, 3) mask 
+mask = np.ones([3, 3], dtype = int) 
+mask = mask / 9
+
+# Convolve the 3X3 mask over the image 
+img_new = np.zeros([m, n]) 
+
+for i in range(1, m-1): 
+	for j in range(1, n-1): 
+		temp = img[i-1, j-1]*mask[0, 0]+img[i-1, j]*mask[0, 1]+img[i-1, j + 1]*mask[0, 2]+img[i, j-1]*mask[1, 0]+ img[i, j]*mask[1, 1]+img[i, j + 1]*mask[1, 2]+img[i + 1, j-1]*mask[2, 0]+img[i + 1, j]*mask[2, 1]+img[i + 1, j + 1]*mask[2, 2] 
+		
+		img_new[i, j]= temp 
+		
+img_new = img_new.astype(np.uint8) 
+
+
+# Display the images
+plt.imshow(img,cmap='gray') 
+#plt.show()
+plt.axis('off')
+# Display the images
+plt.imshow(img_new,cmap='gray') 
+plt.show()
+#===================================================
+
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter
+import matplotlib.pyplot as plt 
+### open the image (PLACE YOUR OWN IMAGE HERE)
+image_org = Image.open('dataset/Data/train/adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib/000024 (10).png')
+def rgb2gray(rgb):
+    if(len(rgb.shape) == 3):
+        return np.uint8(np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140]))
+    else:#already a grayscale
+        return rgb
+    
+image = np.array(image_org)
+grayscale_image = rgb2gray(image) #outputs a grayscaled image
+def calculate_median(array):
+    """Return the median of 1-d array"""
+    sorted_array = np.sort(array) #timsort (O(nlogn))
+    median = sorted_array[len(array)//2]
+    return median
+def level_A(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_med < z_max):
+        return level_B(z_min, z_med, z_max, z_xy, S_xy, S_max)
+    else:
+        S_xy += 2 #increase the size of S_xy to the next odd value.
+        if(S_xy <= S_max): #repeat process
+            return level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+        else:
+            return z_med
+def level_B(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_xy < z_max):
+        return z_xy
+    else:
+        return z_med
+def amf(image, initial_window, max_window):
+    """runs the Adaptive Median Filter proess on an image"""
+    xlength, ylength = image.shape #get the shape of the image.
+    
+    z_min, z_med, z_max, z_xy = 0, 0, 0, 0
+    S_max = max_window
+    S_xy = initial_window #dynamically to grow
+    
+    output_image = image.copy()
+    
+    for row in range(S_xy, xlength-S_xy-1):
+        for col in range(S_xy, ylength-S_xy-1):
+            filter_window = image[row - S_xy : row + S_xy + 1, col - S_xy : col + S_xy + 1] #filter window
+            target = filter_window.reshape(-1) #make 1-dimensional
+            z_min = np.min(target) #min of intensity values
+            z_max = np.max(target) #max of intensity values
+            z_med = calculate_median(target) #median of intensity values
+            z_xy = image[row, col] #current intensity
+            
+            #Level A & B
+            new_intensity = level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+            output_image[row, col] = new_intensity
+    return output_image
+output = amf(grayscale_image, 3, 11)
+plt.axis('off')
+plt.imshow(image_org,cmap="gray")
+plt.show()
+# Display the images
+#plt.imshow(output,cmap="gray") 
+#plt.show()
+#plt.show()
+    
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+	
+# Read the image 
+img =output
+
+
+# Obtain number of rows and columns 
+# of the image 
+m, n = img.shape 
+
+# Develop Averaging filter(3, 3) mask 
+mask = np.ones([3, 3], dtype = int) 
+mask = mask / 9
+
+# Convolve the 3X3 mask over the image 
+img_new = np.zeros([m, n]) 
+
+for i in range(1, m-1): 
+	for j in range(1, n-1): 
+		temp = img[i-1, j-1]*mask[0, 0]+img[i-1, j]*mask[0, 1]+img[i-1, j + 1]*mask[0, 2]+img[i, j-1]*mask[1, 0]+ img[i, j]*mask[1, 1]+img[i, j + 1]*mask[1, 2]+img[i + 1, j-1]*mask[2, 0]+img[i + 1, j]*mask[2, 1]+img[i + 1, j + 1]*mask[2, 2] 
+		
+		img_new[i, j]= temp 
+		
+img_new = img_new.astype(np.uint8) 
+
+
+# Display the images
+plt.imshow(img,cmap='gray') 
+#plt.show()
+plt.axis('off')
+# Display the images
+plt.imshow(img_new,cmap='gray') 
+plt.show()
+#===============================================
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 19 10:16:58 2023
+
+@author: HI
+"""
+
+
+
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter
+import matplotlib.pyplot as plt 
+### open the image (PLACE YOUR OWN IMAGE HERE)
+image_org = Image.open('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000117 (6).png')
+def rgb2gray(rgb):
+    if(len(rgb.shape) == 3):
+        return np.uint8(np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140]))
+    else:#already a grayscale
+        return rgb
+    
+image = np.array(image_org)
+grayscale_image = rgb2gray(image) #outputs a grayscaled image
+def calculate_median(array):
+    """Return the median of 1-d array"""
+    sorted_array = np.sort(array) #timsort (O(nlogn))
+    median = sorted_array[len(array)//2]
+    return median
+def level_A(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_med < z_max):
+        return level_B(z_min, z_med, z_max, z_xy, S_xy, S_max)
+    else:
+        S_xy += 2 #increase the size of S_xy to the next odd value.
+        if(S_xy <= S_max): #repeat process
+            return level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+        else:
+            return z_med
+def level_B(z_min, z_med, z_max, z_xy, S_xy, S_max):
+    if(z_min < z_xy < z_max):
+        return z_xy
+    else:
+        return z_med
+def amf(image, initial_window, max_window):
+    """runs the Adaptive Median Filter proess on an image"""
+    xlength, ylength = image.shape #get the shape of the image.
+    
+    z_min, z_med, z_max, z_xy = 0, 0, 0, 0
+    S_max = max_window
+    S_xy = initial_window #dynamically to grow
+    
+    output_image = image.copy()
+    
+    for row in range(S_xy, xlength-S_xy-1):
+        for col in range(S_xy, ylength-S_xy-1):
+            filter_window = image[row - S_xy : row + S_xy + 1, col - S_xy : col + S_xy + 1] #filter window
+            target = filter_window.reshape(-1) #make 1-dimensional
+            z_min = np.min(target) #min of intensity values
+            z_max = np.max(target) #max of intensity values
+            z_med = calculate_median(target) #median of intensity values
+            z_xy = image[row, col] #current intensity
+            
+            #Level A & B
+            new_intensity = level_A(z_min, z_med, z_max, z_xy, S_xy, S_max)
+            output_image[row, col] = new_intensity
+    return output_image
+output = amf(grayscale_image, 3, 11)
+plt.axis('off')
+plt.imshow(image_org,cmap="gray")
+plt.show()
+# Display the images
+#plt.imshow(output,cmap="gray") 
+#plt.show()
+#plt.show()
+    
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+	
+# Read the image 
+img =output
+
+
+# Obtain number of rows and columns 
+# of the image 
+m, n = img.shape 
+
+# Develop Averaging filter(3, 3) mask 
+mask = np.ones([3, 3], dtype = int) 
+mask = mask / 9
+
+# Convolve the 3X3 mask over the image 
+img_new = np.zeros([m, n]) 
+
+for i in range(1, m-1): 
+	for j in range(1, n-1): 
+		temp = img[i-1, j-1]*mask[0, 0]+img[i-1, j]*mask[0, 1]+img[i-1, j + 1]*mask[0, 2]+img[i, j-1]*mask[1, 0]+ img[i, j]*mask[1, 1]+img[i, j + 1]*mask[1, 2]+img[i + 1, j-1]*mask[2, 0]+img[i + 1, j]*mask[2, 1]+img[i + 1, j + 1]*mask[2, 2] 
+		
+		img_new[i, j]= temp 
+		
+img_new = img_new.astype(np.uint8) 
+
+
+# Display the images
+plt.imshow(img,cmap='gray') 
+#plt.show()
+plt.axis('off')
+# Display the images
+plt.imshow(img_new,cmap='gray') 
+plt.show()
+#===========================================================================================
+#histogram equalization
+
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 19 10:21:18 2023
+
+@author: HI
+"""
+
+## code to plot histogram in pythonimport numpy as np
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+img = cv2.imread('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000131.png')
+
+
+# Convert the image to grayscale
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Apply histogram equalization
+
+#using opencv built-in function
+# Display the images
+#plt.imshow(img) 
+#plt.show()
+#display histogram
+hist,bins = np.histogram(img.flatten(),256,[0,256])
+#plt.hist(img.flatten(),256,[0,256], color = 'r')
+#plt.xlim([0,256])
+#plt.show()
+
+#histogram equalization
+equ = cv2.equalizeHist(gray_img)
+
+#display image
+#plt.imshow(equ) 
+#plt.show()
+#display histogram
+fig, ax = plt.subplots()
+hist,bins = np.histogram(equ.flatten(),256,[0,256])
+ax.hist(equ.flatten(),256,[0,256], color = 'skyblue')
+plt.xlim([0,256])
+ax.axis('off')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.axhline(0, color='black', lw=2)
+ax.axvline(0, color='black', lw=2)
+ax.margins(0)
+
+plt.show()
+
+#=========================================
+## code to plot histogram in pythonimport numpy as np
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+img = cv2.imread('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000115 (5).png')
+
+
+# Convert the image to grayscale
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Apply histogram equalization
+
+#using opencv built-in function
+# Display the images
+#plt.imshow(img) 
+#plt.show()
+#display histogram
+hist,bins = np.histogram(img.flatten(),256,[0,256])
+#plt.hist(img.flatten(),256,[0,256], color = 'r')
+#plt.xlim([0,256])
+#plt.show()
+
+#histogram equalization
+equ = cv2.equalizeHist(gray_img)
+
+#display image
+#plt.imshow(equ) 
+#plt.show()
+fig, ax = plt.subplots()
+hist,bins = np.histogram(equ.flatten(),256,[0,256])
+ax.hist(equ.flatten(),256,[0,256], color = 'skyblue')
+plt.xlim([0,256])
+ax.axis('off')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.axhline(0, color='black', lw=2)
+ax.axvline(0, color='black', lw=2)
+ax.margins(0)
+
+plt.show()
+#=============================================
+## code to plot histogram in pythonimport numpy as np
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+img = cv2.imread('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000118 (2).png')
+
+
+# Convert the image to grayscale
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Apply histogram equalization
+
+#using opencv built-in function
+# Display the images
+#plt.imshow(img) 
+#plt.show()
+#display histogram
+hist,bins = np.histogram(img.flatten(),256,[0,256])
+#plt.hist(img.flatten(),256,[0,256], color = 'r')
+#plt.xlim([0,256])
+#plt.show()
+
+#histogram equalization
+equ = cv2.equalizeHist(gray_img)
+
+#display image
+#plt.imshow(equ) 
+#plt.show()
+fig, ax = plt.subplots()
+hist,bins = np.histogram(equ.flatten(),256,[0,256])
+ax.hist(equ.flatten(),256,[0,256], color = 'skyblue')
+plt.xlim([0,256])
+ax.axis('off')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.axhline(0, color='black', lw=2)
+ax.axvline(0, color='black', lw=2)
+ax.margins(0)
+
+plt.show()
+#=====================================
+## code to plot histogram in pythonimport numpy as np
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+img = cv2.imread('dataset/Data/train/adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib/000024 (10).png')
+
+
+# Convert the image to grayscale
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Apply histogram equalization
+
+#using opencv built-in function
+# Display the images
+#plt.imshow(img) 
+#plt.show()
+#display histogram
+hist,bins = np.histogram(img.flatten(),256,[0,256])
+#plt.hist(img.flatten(),256,[0,256], color = 'r')
+#plt.xlim([0,256])
+#plt.show()
+
+#histogram equalization
+equ = cv2.equalizeHist(gray_img)
+
+#display image
+#plt.imshow(equ) 
+#plt.show()
+#display histogram
+fig, ax = plt.subplots()
+hist,bins = np.histogram(equ.flatten(),256,[0,256])
+ax.hist(equ.flatten(),256,[0,256], color = 'skyblue')
+plt.xlim([0,256])
+ax.axis('off')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.axhline(0, color='black', lw=2)
+ax.axvline(0, color='black', lw=2)
+ax.margins(0)
+
+plt.show()
+#==================================================
+## code to plot histogram in pythonimport numpy as np
+import cv2
+import matplotlib.pyplot as plt 
+import math
+import numpy as np
+
+img = cv2.imread('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000117 (6).png')
+
+
+# Convert the image to grayscale
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Apply histogram equalization
+
+#using opencv built-in function
+# Display the images
+#plt.imshow(img) 
+#plt.show()
+#display histogram
+hist,bins = np.histogram(img.flatten(),256,[0,256])
+#plt.hist(img.flatten(),256,[0,256], color = 'r')
+#plt.xlim([0,256])
+#plt.show()
+
+#histogram equalization
+equ = cv2.equalizeHist(gray_img)
+
+#display image
+#plt.imshow(equ) 
+#plt.show()
+#display histogram
+fig, ax = plt.subplots()
+hist,bins = np.histogram(equ.flatten(),256,[0,256])
+ax.hist(equ.flatten(),256,[0,256], color = 'skyblue')
+plt.xlim([0,256])
+ax.axis('off')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.axhline(0, color='black', lw=2)
+ax.axvline(0, color='black', lw=2)
+ax.margins(0)
+
+plt.show()
+
+#=========================================================================================
+
+#image enhacement
+
+
+#Import the necessary libraries
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+  
+# Load the image
+image = cv2.imread('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000131.png')
+  
+#Plot the original image
+#plt.subplot(1, 2, 1)
+#plt.title("Original")
+#plt.imshow(image)
+#plt.show()  
+# Adjust the brightness and contrast 
+# g(i,j)=α⋅f(i,j)+β
+# control Contrast by 1.5
+alpha = 1.5  
+# control brightness by 50
+beta = 50  
+image2 = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+  
+#Save the image
+#cv2.imwrite('Brightness & contrast.jpg', image2)
+#Plot the contrast image
+#plt.subplot(1, 2, 2)
+#plt.title("Brightness & contrast")
+plt.imshow(image2)
+plt.axis("off")
+plt.show()
+#=========================================
+#Import the necessary libraries
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+  
+# Load the image
+image = cv2.imread('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000115 (5).png')
+  
+#Plot the original image
+#plt.subplot(1, 2, 1)
+#plt.title("Original")
+#plt.imshow(image)
+#plt.show()  
+# Adjust the brightness and contrast 
+# g(i,j)=α⋅f(i,j)+β
+# control Contrast by 1.5
+alpha = 1.5  
+# control brightness by 50
+beta = 50  
+image2 = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+  
+#Save the image
+#cv2.imwrite('Brightness & contrast.jpg', image2)
+#Plot the contrast image
+#plt.subplot(1, 2, 2)
+#plt.title("Brightness & contrast")
+plt.imshow(image2)
+plt.axis("off")
+plt.show()
+#=================================
+#Import the necessary libraries
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+  
+# Load the image
+image = cv2.imread('dataset/Data/valid/large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa/000118 (2).png')
+  
+#Plot the original image
+#plt.subplot(1, 2, 1)
+#plt.title("Original")
+#plt.imshow(image)
+#plt.show()  
+# Adjust the brightness and contrast 
+# g(i,j)=α⋅f(i,j)+β
+# control Contrast by 1.5
+alpha = 1.5  
+# control brightness by 50
+beta = 50  
+image2 = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+  
+#Save the image
+#cv2.imwrite('Brightness & contrast.jpg', image2)
+#Plot the contrast image
+#plt.subplot(1, 2, 2)
+#plt.title("Brightness & contrast")
+plt.imshow(image2)
+plt.axis("off")
+plt.show()
+#=======================================
+#Import the necessary libraries
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+  
+# Load the image
+image = cv2.imread('dataset/Data/train/adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib/000024 (10).png')
+  
+#Plot the original image
+#plt.subplot(1, 2, 1)
+#plt.title("Original")
+#plt.imshow(image)
+#plt.show()  
+# Adjust the brightness and contrast 
+# g(i,j)=α⋅f(i,j)+β
+# control Contrast by 1.5
+alpha = 1.5  
+# control brightness by 50
+beta = 50  
+image2 = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+  
+#Save the image
+#cv2.imwrite('Brightness & contrast.jpg', image2)
+#Plot the contrast image
+#plt.subplot(1, 2, 2)
+#plt.title("Brightness & contrast")
+plt.imshow(image2)
+plt.axis("off")
+plt.show()
+#=======================================
+#Import the necessary libraries
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+  
+# Load the image
+image = cv2.imread('dataset/Data/valid/squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa/000117 (6).png')
+  
+#Plot the original image
+#plt.subplot(1, 2, 1)
+#plt.title("Original")
+#plt.imshow(image)
+#plt.show()  
+# Adjust the brightness and contrast 
+# g(i,j)=α⋅f(i,j)+β
+# control Contrast by 1.5
+alpha = 1.5  
+# control brightness by 50
+beta = 50  
+image2 = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+  
+#Save the image
+#cv2.imwrite('Brightness & contrast.jpg', image2)
+#Plot the contrast image
+#plt.subplot(1, 2, 2)
+#plt.title("Brightness & contrast")
+plt.imshow(image2)
+plt.axis("off")
+plt.show()
