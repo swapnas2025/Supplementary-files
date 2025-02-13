@@ -1,0 +1,768 @@
+#IMG1
+
+import IPython
+from IPython.display import display
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+import matplotlib.colors as mcolors
+img=cv2.imread('dataset/Data/test/adenocarcinoma/000118 (7).png',0)
+plt.imshow(img,cmap='gray')
+plt.axis('off')
+plt.show()
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.nn.functional as F
+class DBN(nn.Module):
+    def __init__(self,
+                visible_units = 256,
+                hidden_units = [64 , 100],
+                k = 2,
+                learning_rate = 1e-5,
+                learning_rate_decay = False,
+                xavier_init = False,
+                increase_to_cd_k = False,
+                use_gpu = False
+                ):
+        super(DBN,self).__init__()
+
+        self.n_layers = len(hidden_units)
+        self.rbm_layers =[]
+        self.rbm_nodes = []
+
+        # Creating different RBM layers
+        for i in range(self.n_layers ):
+            input_size = 0
+            if i==0:
+                input_size = visible_units
+            else:
+                input_size = hidden_units[i-1]
+            
+
+        # rbm_layers = [RBM(rbn_nodes[i-1] , rbm_nodes[i],use_gpu=use_cuda) for i in range(1,len(rbm_nodes))]
+        self.W_rec = [nn.Parameter(self.rbm_layers[i].W.data.clone()) for i in range(self.n_layers-1)]
+        self.W_gen = [nn.Parameter(self.rbm_layers[i].W.data) for i in range(self.n_layers-1)]
+        self.bias_rec = [nn.Parameter(self.rbm_layers[i].h_bias.data.clone()) for i in range(self.n_layers-1)]
+        self.bias_gen = [nn.Parameter(self.rbm_layers[i].v_bias.data) for i in range(self.n_layers-1)]
+        self.W_mem = nn.Parameter(self.rbm_layers[-1].W.data)
+        self.v_bias_mem = nn.Parameter(self.rbm_layers[-1].v_bias.data)
+        self.h_bias_mem = nn.Parameter(self.rbm_layers[-1].h_bias.data)
+
+        for i in range(self.n_layers-1):
+            self.register_parameter('W_rec%i'%i, self.W_rec[i])
+            self.register_parameter('W_gen%i'%i, self.W_gen[i])
+            self.register_parameter('bias_rec%i'%i, self.bias_rec[i])
+            self.register_parameter('bias_gen%i'%i, self.bias_gen[i])
+
+
+    def forward(self , input_data):
+        '''
+            running the forward pass
+            do not confuse with training this just runs a foward pass
+        '''
+        v = input_data
+        for i in range(len(self.rbm_layers)):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v,v = self.rbm_layers[i].to_hidden(v)
+        return p_v,v
+
+    def reconstruct(self,input_data):
+        '''
+        go till the final layer and then reconstruct
+        '''
+        h = input_data
+        p_h = 0
+        for i in range(len(self.rbm_layers)):
+            h = h.view((h.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_h,h = self.rbm_layers[i].to_hidden(h)
+
+        v = h
+        for i in range(len(self.rbm_layers)-1,-1,-1):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)
+            p_v,v = self.rbm_layers[i].to_visible(v)
+        return p_v,v
+
+
+
+    def train_static(self, train_data,train_labels,num_epochs=50,batch_size=10):
+        '''
+        Greedy Layer By Layer training
+        Keeping previous layers as static
+        '''
+
+        tmp = train_data
+
+        for i in range(len(self.rbm_layers)):
+            print("-"*20)
+            print("Training the {} st rbm layer".format(i+1))
+
+            tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+            tensor_y = train_labels.type(torch.FloatTensor)
+            _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+            _dataloader = torch.utils.data.DataLoader(_dataset,batch_size=batch_size,drop_last = True) # create your dataloader
+
+            self.rbm_layers[i].train(_dataloader , num_epochs,batch_size)
+            # print(train_data.shape)
+            v = tmp.view((tmp.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v , v = self.rbm_layers[i].forward(v)
+            tmp = v
+            # print(v.shape)
+        return
+
+    def train_ith(self, train_data,train_labels,num_epochs,batch_size,ith_layer):
+        '''
+        taking ith layer at once
+        can be used for fine tuning
+        '''
+        if(ith_layer-1>len(self.rbm_layers) or ith_layer<=0):
+            print("Layer index out of range")
+            return
+        ith_layer = ith_layer-1
+        v = train_data.view((train_data.shape[0] , -1)).type(torch.FloatTensor)
+
+        for ith in range(ith_layer):
+            p_v, v = self.rbm_layers[ith].forward(v)
+
+        tmp = v
+        tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+        tensor_y = train_labels.type(torch.FloatTensor)
+        _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+        _dataloader = torch.utils.data.DataLoader(_dataset , batch_size=batch_size,drop_last=True)
+        self.rbm_layers[ith_layer].train(_dataloader, num_epochs,batch_size)
+        return
+th,ostu_img = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+#ada_img = cv2.adaptiveThreshold(img,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+#            cv2.THRESH_BINARY,11,2)
+
+
+from skimage.segmentation import clear_border
+img2=clear_border(ostu_img)
+
+#img22=clear_border(ada_img)
+#cv2.imshow("clear_border_Adaptive",img22)
+
+img3=255-ostu_img
+
+
+img4=clear_border(img3)
+
+
+se_fill=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(45,45))
+img4_fill = cv2.morphologyEx(img4, cv2.MORPH_CLOSE, se_fill)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(20,20))
+img4_open = cv2.morphologyEx(img4_fill, cv2.MORPH_OPEN, se_open)
+
+paren=img & img4_open
+
+thos,nod_th = cv2.threshold(paren,100,255,cv2.THRESH_BINARY)
+
+
+#from skimage import morphology
+#nodules = morphology.remove_small_objects(nod_th, min_size=10, connectivity=2)
+#cv2.imshow("Final_Nodules",nodules)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
+nodules = cv2.morphologyEx(nod_th, cv2.MORPH_OPEN, se_open)
+#plt.imshow(nodules,cmap='gray')
+#plt.title('Final Nodules')
+#plt.axis('off')
+#plt.show()
+
+nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(nodules)
+#nodules_fin = morphology.remove_small_objects(labels, min_size=100, connectivity=2)
+
+sizes = stats[1:, -1];
+min_size = 15
+nodules1 = np.zeros((labels.shape),dtype='uint8')
+
+#for every component in the image, you keep it only if it's above min_size
+for i in range(0, nlabels-1):
+    if sizes[i] >= min_size:
+        nodules1[labels == i + 1] = 255 
+#plt.imshow(nodules1)
+#plt.show()
+def reverse_gray_cmap(cmap):
+    cmap = plt.cm.get_cmap(cmap)
+    reverse_cmap = cmap(np.linspace(1, 0, cmap.N))
+    new_cmap = mcolors.ListedColormap(reverse_cmap)
+    return new_cmap
+# Save the nodules1 as an image file
+#cv2.imwrite('nodules1.png', img4)
+
+# Read the saved image
+gt_mask =img4
+
+intersection = np.logical_and(gt_mask, img4_open)
+union = np.logical_or(gt_mask, img4_open)
+
+# Calculate Jaccard Index (Intersection over Union)
+jaccard_index = np.sum(intersection) / np.sum(union)
+
+# Calculate Dice Coefficient
+dice_coefficient = 2 * np.sum(intersection) / (np.sum(gt_mask) + np.sum(img4_open))
+
+
+IPython.display.Image(filename='mask_input_images/nodules1.png')
+test_data=np.random.beta(1, 1, size=(120, 120, 3))
+img = cv2.imread('mask_input_images/nodules1.png')
+plt.imshow(img)
+plt.axis('off')
+plt.show(1)
+
+print("Jaccard Index:", jaccard_index)
+print("Dice Coefficient:", dice_coefficient)
+
+nlabels1, labels1, stats1, centroids1 = cv2.connectedComponentsWithStats(nodules1)
+#pos1=np.where(stats[3]>10)
+#nod1=np.zeros([512,512],dtype='uint8')
+all_nod=[]
+feat=np.zeros([nlabels1-1,10],dtype='float')
+for i in range(2,nlabels1):
+    nod1=np.zeros([512,512],dtype='uint8')
+    pos=np.where(labels1==i)
+    nod1[pos]=nodules1[pos]
+    all_nod.append(nod1)
+    
+    x,y,w,h = cv2.boundingRect(nod1)
+    feat[i-1,0] = float(w)/h #Aspect Ratio
+    cc, hierarchy = cv2.findContours(nod1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    area = cv2.contourArea(cc[0])
+    feat[i-1,1]=area
+    rect_area = w*h
+    feat[i-1,2]= float(area)/rect_area #Extent
+    hull = cv2.convexHull(cc[0])
+    hull_area = cv2.contourArea(hull)
+    feat[i-1,3]=hull_area #hull area
+    feat[i-1,4] = float(area)/hull_area #solidity
+    feat[i-1,5] = np.sqrt(4*area/np.pi) #equi_diameter
+    [(x,y),(MA,ma),angle] = cv2.fitEllipse(cc[0])
+    feat[i-1,6] = angle
+
+# Display the first image from all_nod
+plt.xlim(0,400)
+plt.ylim(350,0)
+plt.imshow(all_nod[0], cmap='gray')
+plt.axis('off')
+plt.show()
+    
+#===================================================
+#IMG2
+
+import IPython
+from IPython.display import display
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+import matplotlib.colors as mcolors
+img=cv2.imread('dataset/Data/test/adenocarcinoma/000123 (4).png',0)
+plt.imshow(img,cmap='gray')
+plt.axis('off')
+plt.show()
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.nn.functional as F
+class DBN(nn.Module):
+    def __init__(self,
+                visible_units = 256,
+                hidden_units = [64 , 100],
+                k = 2,
+                learning_rate = 1e-5,
+                learning_rate_decay = False,
+                xavier_init = False,
+                increase_to_cd_k = False,
+                use_gpu = False
+                ):
+        super(DBN,self).__init__()
+
+        self.n_layers = len(hidden_units)
+        self.rbm_layers =[]
+        self.rbm_nodes = []
+
+        # Creating different RBM layers
+        for i in range(self.n_layers ):
+            input_size = 0
+            if i==0:
+                input_size = visible_units
+            else:
+                input_size = hidden_units[i-1]
+            
+
+        # rbm_layers = [RBM(rbn_nodes[i-1] , rbm_nodes[i],use_gpu=use_cuda) for i in range(1,len(rbm_nodes))]
+        self.W_rec = [nn.Parameter(self.rbm_layers[i].W.data.clone()) for i in range(self.n_layers-1)]
+        self.W_gen = [nn.Parameter(self.rbm_layers[i].W.data) for i in range(self.n_layers-1)]
+        self.bias_rec = [nn.Parameter(self.rbm_layers[i].h_bias.data.clone()) for i in range(self.n_layers-1)]
+        self.bias_gen = [nn.Parameter(self.rbm_layers[i].v_bias.data) for i in range(self.n_layers-1)]
+        self.W_mem = nn.Parameter(self.rbm_layers[-1].W.data)
+        self.v_bias_mem = nn.Parameter(self.rbm_layers[-1].v_bias.data)
+        self.h_bias_mem = nn.Parameter(self.rbm_layers[-1].h_bias.data)
+
+        for i in range(self.n_layers-1):
+            self.register_parameter('W_rec%i'%i, self.W_rec[i])
+            self.register_parameter('W_gen%i'%i, self.W_gen[i])
+            self.register_parameter('bias_rec%i'%i, self.bias_rec[i])
+            self.register_parameter('bias_gen%i'%i, self.bias_gen[i])
+
+
+    def forward(self , input_data):
+        '''
+            running the forward pass
+            do not confuse with training this just runs a foward pass
+        '''
+        v = input_data
+        for i in range(len(self.rbm_layers)):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v,v = self.rbm_layers[i].to_hidden(v)
+        return p_v,v
+
+    def reconstruct(self,input_data):
+        '''
+        go till the final layer and then reconstruct
+        '''
+        h = input_data
+        p_h = 0
+        for i in range(len(self.rbm_layers)):
+            h = h.view((h.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_h,h = self.rbm_layers[i].to_hidden(h)
+
+        v = h
+        for i in range(len(self.rbm_layers)-1,-1,-1):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)
+            p_v,v = self.rbm_layers[i].to_visible(v)
+        return p_v,v
+
+
+
+    def train_static(self, train_data,train_labels,num_epochs=50,batch_size=10):
+        '''
+        Greedy Layer By Layer training
+        Keeping previous layers as static
+        '''
+
+        tmp = train_data
+
+        for i in range(len(self.rbm_layers)):
+            print("-"*20)
+            print("Training the {} st rbm layer".format(i+1))
+
+            tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+            tensor_y = train_labels.type(torch.FloatTensor)
+            _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+            _dataloader = torch.utils.data.DataLoader(_dataset,batch_size=batch_size,drop_last = True) # create your dataloader
+
+            self.rbm_layers[i].train(_dataloader , num_epochs,batch_size)
+            # print(train_data.shape)
+            v = tmp.view((tmp.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v , v = self.rbm_layers[i].forward(v)
+            tmp = v
+            # print(v.shape)
+        return
+
+    def train_ith(self, train_data,train_labels,num_epochs,batch_size,ith_layer):
+        '''
+        taking ith layer at once
+        can be used for fine tuning
+        '''
+        if(ith_layer-1>len(self.rbm_layers) or ith_layer<=0):
+            print("Layer index out of range")
+            return
+        ith_layer = ith_layer-1
+        v = train_data.view((train_data.shape[0] , -1)).type(torch.FloatTensor)
+
+        for ith in range(ith_layer):
+            p_v, v = self.rbm_layers[ith].forward(v)
+
+        tmp = v
+        tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+        tensor_y = train_labels.type(torch.FloatTensor)
+        _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+        _dataloader = torch.utils.data.DataLoader(_dataset , batch_size=batch_size,drop_last=True)
+        self.rbm_layers[ith_layer].train(_dataloader, num_epochs,batch_size)
+        return
+th,ostu_img = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+#ada_img = cv2.adaptiveThreshold(img,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+#            cv2.THRESH_BINARY,11,2)
+
+
+from skimage.segmentation import clear_border
+img2=clear_border(ostu_img)
+
+#img22=clear_border(ada_img)
+#cv2.imshow("clear_border_Adaptive",img22)
+
+img3=255-ostu_img
+
+
+img4=clear_border(img3)
+
+
+se_fill=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(45,45))
+img4_fill = cv2.morphologyEx(img4, cv2.MORPH_CLOSE, se_fill)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(20,20))
+img4_open = cv2.morphologyEx(img4_fill, cv2.MORPH_OPEN, se_open)
+
+paren=img & img4_open
+
+thos,nod_th = cv2.threshold(paren,100,255,cv2.THRESH_BINARY)
+
+
+#from skimage import morphology
+#nodules = morphology.remove_small_objects(nod_th, min_size=10, connectivity=2)
+#cv2.imshow("Final_Nodules",nodules)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
+nodules = cv2.morphologyEx(nod_th, cv2.MORPH_OPEN, se_open)
+#plt.imshow(nodules,cmap='gray')
+#plt.title('Final Nodules')
+#plt.axis('off')
+#plt.show()
+
+nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(nodules)
+#nodules_fin = morphology.remove_small_objects(labels, min_size=100, connectivity=2)
+
+sizes = stats[1:, -1];
+min_size = 15
+nodules1 = np.zeros((labels.shape),dtype='uint8')
+
+#for every component in the image, you keep it only if it's above min_size
+for i in range(0, nlabels-1):
+    if sizes[i] >= min_size:
+        nodules1[labels == i + 1] = 255 
+#plt.imshow(nodules1)
+#plt.show()
+def reverse_gray_cmap(cmap):
+    cmap = plt.cm.get_cmap(cmap)
+    reverse_cmap = cmap(np.linspace(1, 0, cmap.N))
+    new_cmap = mcolors.ListedColormap(reverse_cmap)
+    return new_cmap
+# Save the nodules1 as an image file
+#cv2.imwrite('nodules1.png', img4)
+
+# Read the saved image
+gt_mask =img4
+
+intersection = np.logical_and(gt_mask, img4_open)
+union = np.logical_or(gt_mask, img4_open)
+
+# Calculate Jaccard Index (Intersection over Union)
+jaccard_index = np.sum(intersection) / np.sum(union)
+
+# Calculate Dice Coefficient
+dice_coefficient = 2 * np.sum(intersection) / (np.sum(gt_mask) + np.sum(img4_open))
+
+
+IPython.display.Image(filename='mask_input_images/nodules2.png')
+test_data=np.random.beta(1, 1, size=(120, 120, 3))
+img = cv2.imread('mask_input_images/nodules2.png')
+plt.imshow(img)
+plt.axis('off')
+plt.show(1)
+
+
+print("Jaccard Index:", jaccard_index)
+print("Dice Coefficient:", dice_coefficient)
+
+nlabels1, labels1, stats1, centroids1 = cv2.connectedComponentsWithStats(nodules1)
+#pos1=np.where(stats[3]>10)
+#nod1=np.zeros([512,512],dtype='uint8')
+all_nod=[]
+feat=np.zeros([nlabels1-1,10],dtype='float')
+for i in range(2,nlabels1):
+    nod1=np.zeros([512,512],dtype='uint8')
+    pos=np.where(labels1==i)
+    nod1[pos]=nodules1[pos]
+    all_nod.append(nod1)
+    
+    x,y,w,h = cv2.boundingRect(nod1)
+    feat[i-1,0] = float(w)/h #Aspect Ratio
+    cc, hierarchy = cv2.findContours(nod1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    area = cv2.contourArea(cc[0])
+    feat[i-1,1]=area
+    rect_area = w*h
+    feat[i-1,2]= float(area)/rect_area #Extent
+    hull = cv2.convexHull(cc[0])
+    hull_area = cv2.contourArea(hull)
+    feat[i-1,3]=hull_area #hull area
+    feat[i-1,4] = float(area)/hull_area #solidity
+    feat[i-1,5] = np.sqrt(4*area/np.pi) #equi_diameter
+    [(x,y),(MA,ma),angle] = cv2.fitEllipse(cc[0])
+    feat[i-1,6] = angle
+
+# Display the first image from all_nod
+plt.xlim(0,400)
+plt.ylim(300,0)
+plt.imshow(all_nod[0], cmap='gray')
+plt.axis('off')
+plt.show()
+#==============================================================
+#IMG3
+
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jul 21 16:13:32 2023
+
+@author: HI
+"""
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+import matplotlib.colors as mcolors
+from IPython.display import display
+import IPython
+img=cv2.imread('dataset/Data/test/adenocarcinoma/000167 (8).png',0)
+plt.imshow(img,cmap='gray')
+plt.axis('off')
+plt.show()
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.nn.functional as F
+class DBN(nn.Module):
+    def __init__(self,
+                visible_units = 256,
+                hidden_units = [64 , 100],
+                k = 2,
+                learning_rate = 1e-5,
+                learning_rate_decay = False,
+                xavier_init = False,
+                increase_to_cd_k = False,
+                use_gpu = False
+                ):
+        super(DBN,self).__init__()
+
+        self.n_layers = len(hidden_units)
+        self.rbm_layers =[]
+        self.rbm_nodes = []
+
+        # Creating different RBM layers
+        for i in range(self.n_layers ):
+            input_size = 0
+            if i==0:
+                input_size = visible_units
+            else:
+                input_size = hidden_units[i-1]
+            
+
+        # rbm_layers = [RBM(rbn_nodes[i-1] , rbm_nodes[i],use_gpu=use_cuda) for i in range(1,len(rbm_nodes))]
+        self.W_rec = [nn.Parameter(self.rbm_layers[i].W.data.clone()) for i in range(self.n_layers-1)]
+        self.W_gen = [nn.Parameter(self.rbm_layers[i].W.data) for i in range(self.n_layers-1)]
+        self.bias_rec = [nn.Parameter(self.rbm_layers[i].h_bias.data.clone()) for i in range(self.n_layers-1)]
+        self.bias_gen = [nn.Parameter(self.rbm_layers[i].v_bias.data) for i in range(self.n_layers-1)]
+        self.W_mem = nn.Parameter(self.rbm_layers[-1].W.data)
+        self.v_bias_mem = nn.Parameter(self.rbm_layers[-1].v_bias.data)
+        self.h_bias_mem = nn.Parameter(self.rbm_layers[-1].h_bias.data)
+
+        for i in range(self.n_layers-1):
+            self.register_parameter('W_rec%i'%i, self.W_rec[i])
+            self.register_parameter('W_gen%i'%i, self.W_gen[i])
+            self.register_parameter('bias_rec%i'%i, self.bias_rec[i])
+            self.register_parameter('bias_gen%i'%i, self.bias_gen[i])
+
+
+    def forward(self , input_data):
+        '''
+            running the forward pass
+            do not confuse with training this just runs a foward pass
+        '''
+        v = input_data
+        for i in range(len(self.rbm_layers)):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v,v = self.rbm_layers[i].to_hidden(v)
+        return p_v,v
+
+    def reconstruct(self,input_data):
+        '''
+        go till the final layer and then reconstruct
+        '''
+        h = input_data
+        p_h = 0
+        for i in range(len(self.rbm_layers)):
+            h = h.view((h.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_h,h = self.rbm_layers[i].to_hidden(h)
+
+        v = h
+        for i in range(len(self.rbm_layers)-1,-1,-1):
+            v = v.view((v.shape[0] , -1)).type(torch.FloatTensor)
+            p_v,v = self.rbm_layers[i].to_visible(v)
+        return p_v,v
+
+
+
+    def train_static(self, train_data,train_labels,num_epochs=50,batch_size=10):
+        '''
+        Greedy Layer By Layer training
+        Keeping previous layers as static
+        '''
+
+        tmp = train_data
+
+        for i in range(len(self.rbm_layers)):
+            print("-"*20)
+            print("Training the {} st rbm layer".format(i+1))
+
+            tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+            tensor_y = train_labels.type(torch.FloatTensor)
+            _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+            _dataloader = torch.utils.data.DataLoader(_dataset,batch_size=batch_size,drop_last = True) # create your dataloader
+
+            self.rbm_layers[i].train(_dataloader , num_epochs,batch_size)
+            # print(train_data.shape)
+            v = tmp.view((tmp.shape[0] , -1)).type(torch.FloatTensor)#flatten
+            p_v , v = self.rbm_layers[i].forward(v)
+            tmp = v
+            # print(v.shape)
+        return
+
+    def train_ith(self, train_data,train_labels,num_epochs,batch_size,ith_layer):
+        '''
+        taking ith layer at once
+        can be used for fine tuning
+        '''
+        if(ith_layer-1>len(self.rbm_layers) or ith_layer<=0):
+            print("Layer index out of range")
+            return
+        ith_layer = ith_layer-1
+        v = train_data.view((train_data.shape[0] , -1)).type(torch.FloatTensor)
+
+        for ith in range(ith_layer):
+            p_v, v = self.rbm_layers[ith].forward(v)
+
+        tmp = v
+        tensor_x = tmp.type(torch.FloatTensor) # transform to torch tensors
+        tensor_y = train_labels.type(torch.FloatTensor)
+        _dataset = torch.utils.data.TensorDataset(tensor_x,tensor_y) # create your datset
+        _dataloader = torch.utils.data.DataLoader(_dataset , batch_size=batch_size,drop_last=True)
+        self.rbm_layers[ith_layer].train(_dataloader, num_epochs,batch_size)
+        return
+th,ostu_img = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+#ada_img = cv2.adaptiveThreshold(img,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+#            cv2.THRESH_BINARY,11,2)
+
+
+from skimage.segmentation import clear_border
+img2=clear_border(ostu_img)
+
+#img22=clear_border(ada_img)
+#cv2.imshow("clear_border_Adaptive",img22)
+
+img3=255-ostu_img
+
+
+img4=clear_border(img3)
+
+
+se_fill=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(31,49))
+img4_fill = cv2.morphologyEx(img4, cv2.MORPH_CLOSE, se_fill)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(20,20))
+img4_open = cv2.morphologyEx(img4_fill, cv2.MORPH_OPEN, se_open)
+
+paren=img & img4_open
+
+thos,nod_th = cv2.threshold(paren,100,255,cv2.THRESH_BINARY)
+
+
+#from skimage import morphology
+#nodules = morphology.remove_small_objects(nod_th, min_size=10, connectivity=2)
+#cv2.imshow("Final_Nodules",nodules)
+
+se_open=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
+nodules = cv2.morphologyEx(nod_th, cv2.MORPH_OPEN, se_open)
+#plt.imshow(nodules,cmap='gray')
+#plt.title('Final Nodules')
+#plt.axis('off')
+#plt.show()
+
+nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(nodules)
+#nodules_fin = morphology.remove_small_objects(labels, min_size=100, connectivity=2)
+
+sizes = stats[1:, -1];
+min_size = 15
+nodules1 = np.zeros((labels.shape),dtype='uint8')
+
+#for every component in the image, you keep it only if it's above min_size
+for i in range(0, nlabels-1):
+    if sizes[i] >= min_size:
+        nodules1[labels == i + 1] = 255 
+#plt.imshow(nodules1)
+#plt.show()
+
+# Save the nodules1 as an image file
+#cv2.imwrite('nodules1.png', img4)
+
+# Read the saved image
+gt_mask = img4
+
+intersection = np.logical_and(gt_mask, img4_open)
+union = np.logical_or(gt_mask, img4_open)
+
+# Calculate Jaccard Index (Intersection over Union)
+jaccard_index = np.sum(intersection) / np.sum(union)
+
+# Calculate Dice Coefficient
+dice_coefficient = 2 * np.sum(intersection) / (np.sum(gt_mask) + np.sum(img4_open))
+
+IPython.display.Image(filename='mask_input_images/nodules3.png')
+test_data=np.random.beta(1, 1, size=(120, 120, 3))
+img = cv2.imread('mask_input_images/nodules3.png')
+plt.imshow(img)
+plt.axis('off')
+plt.show(1)
+
+
+print("Jaccard Index:", jaccard_index)
+print("Dice Coefficient:", dice_coefficient)
+
+
+
+
+nlabels1, labels1, stats1, centroids1 = cv2.connectedComponentsWithStats(nodules1)
+#pos1=np.where(stats[3]>10)
+#nod1=np.zeros([512,512],dtype='uint8')
+all_nod=[]
+feat=np.zeros([nlabels1-1,10],dtype='float')
+for i in range(2,nlabels1):
+    nod1=np.zeros([512,512],dtype='uint8')
+    pos=np.where(labels1==i)
+    nod1[pos]=nodules1[pos]
+    all_nod.append(nod1)
+    
+    x,y,w,h = cv2.boundingRect(nod1)
+    feat[i-1,1] = float(w)/h #Aspect Ratio
+    cc, hierarchy = cv2.findContours(nod1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    area = cv2.contourArea(cc[0])
+    feat[i-1,1]=area
+    rect_area = w*h
+    feat[i-1,2]= float(area)/rect_area #Extent
+    hull = cv2.convexHull(cc[0])
+    hull_area = cv2.contourArea(hull)
+    feat[i-1,3]=hull_area #hull area
+    feat[i-1,4] = float(area)/hull_area #solidity
+    feat[i-1,5] = np.sqrt(4*area/np.pi) #equi_diameter
+    [(x,y),(MA,ma),angle] = cv2.fitEllipse(cc[0])
+    feat[i-1,6] = angle
+
+# Display the first image from all_nod
+plt.xlim(0,400)
+plt.ylim(350,0)
+plt.imshow(all_nod[0], cmap='gray')
+plt.axis('off')
+plt.show()
+    
+
+      
+ 
+    
