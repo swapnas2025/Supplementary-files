@@ -1,0 +1,279 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jul 24 10:04:58 2023
+
+@author: HI
+"""
+
+import os
+import cv2
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from sklearn.feature_selection import VarianceThreshold
+from tensorflow.keras.applications.vgg16 import VGG16
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.applications.vgg16 import preprocess_input
+import warnings
+warnings.filterwarnings("ignore")
+
+# File Directory for both the train and test
+train_path = "dataset/Data/train"
+val_path = "dataset/Data/valid"
+test_path = "dataset/Data/test"
+
+def GetDatasetSize(path):
+    num_of_image = {}
+    for folder in os.listdir(path):
+        # Counting the Number of Files in the Folder
+        num_of_image[folder] = len(os.listdir(os.path.join(path, folder)));
+    return num_of_image;
+    
+train_set = GetDatasetSize(train_path)
+val_set = GetDatasetSize(val_path)
+test_set = GetDatasetSize(test_path)
+print(train_set,"\n\n",val_set,"\n\n",test_set)
+
+
+def extract_features(image_paths):
+    # Load the VGG16 model with pre-trained weights (without the top classification layers)
+    base_model = VGG16(weights='imagenet', include_top=False, pooling='avg')
+
+    # Create a feature extraction model using the base model's input and output layers
+    model = tf.keras.models.Model(inputs=base_model.input, outputs=base_model.output)
+
+    # Initialize an empty list to store the extracted features
+    features_list = []
+
+    for image_path in image_paths:
+        # Load and preprocess the image
+        img = load_img(image_path, target_size=(224, 224))  # VGG16 input size
+        img_array = img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array = preprocess_input(img_array)
+
+        # Extract features using the model
+        features = model.predict(img_array)
+        features_list.append(features.flatten())
+
+    # Return the list of extracted features
+    return features_list
+
+# Example usage
+image_paths = ['dataset/Data/test/adenocarcinoma/000108 (3).png', 'dataset/Data/test/large.cell.carcinoma/000111.png', 'dataset/Data/test/squamous.cell.carcinoma/000108 (6).png']  # Replace with your image paths
+extracted_features = extract_features(image_paths)
+# The extracted_features will be a list of numpy arrays containing the extracted features for each image in the dataset.
+def feature_selection(features, threshold=0.01):
+    # Initialize the VarianceThreshold selector
+    selector = VarianceThreshold(threshold)
+
+    # Fit the selector to the features and transform the features
+    selected_features = selector.fit_transform(features)
+
+    # Get the support mask (indices of selected features)
+    selected_mask = selector.get_support()
+
+    # Get the list of selected feature indices
+    selected_indices = np.where(selected_mask)[0]
+
+    # Return the selected features and indices
+    return selected_features, selected_indices
+
+# Example usage
+# Assuming extracted_features is the list of feature vectors obtained from the previous step
+extracted_features = np.array(extracted_features)  # Convert to numpy array for feature selection
+selected_features, selected_indices = feature_selection(extracted_features)
+
+# selected_features will be the subset of features after feature selection
+# selected_indices will be the indices of the selected features in the original feature vector
+
+
+# Specify the path to the train folder
+
+train_folder = "dataset/Data/train"
+
+# Define the class labels
+class_labels = ['normal', 'adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib', 'large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa', 'squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa']
+
+# Initialize lists to store the training data
+x_train = []
+y_train = []
+
+# Iterate through each class folder
+for label_idx, label in enumerate(class_labels):
+    class_folder = os.path.join(train_folder, label)
+    
+    # Iterate through each image file in the class folder
+    for image_file in os.listdir(class_folder):
+        image_path = os.path.join(class_folder, image_file)
+        
+        # Load and preprocess the image
+        image = cv2.imread(image_path)
+        # Perform any necessary preprocessing steps here
+        
+        # Append the preprocessed image to x_train
+        x_train.append(image)
+        
+        # Append the label index to y_train
+        y_train.append(label_idx)
+
+# Convert x_train and y_train to numpy arrays
+x_train = np.array(x_train)
+y_train = np.array(y_train)
+
+# Verify the shapes of x_train and y_train
+print("x_train shape:", x_train.shape)
+print("y_train shape:", y_train.shape)
+
+import tensorflow.keras
+from tensorflow.keras import layers
+from tensorflow.keras import Model 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
+from tensorflow.keras.models import load_model, Model
+from tensorflow.keras.layers import Dense,Conv2D, Flatten, MaxPool2D, Dropout
+train_datagen = ImageDataGenerator(rescale = 1.0/255.0,
+                                  horizontal_flip = True,
+                                  fill_mode = 'nearest',
+                                  zoom_range=0.2,
+                                  shear_range = 0.2,
+                                  width_shift_range=0.2,
+                                  height_shift_range=0.2,
+                                  rotation_range=0.4)
+
+train_data = train_datagen.flow_from_directory(train_path,
+                                                   batch_size = 5,
+                                                   target_size = (350,350),
+                                                   class_mode = 'categorical')
+
+print(train_data.class_indices)
+
+val_datagen = ImageDataGenerator(rescale = 1.0/255.0)
+val_data = val_datagen.flow_from_directory(val_path,
+                                                   batch_size = 5,
+                                                   target_size = (350,350),
+                                                   class_mode = 'categorical')
+
+print(val_data.class_indices)
+
+test_datagen = ImageDataGenerator(rescale = 1.0/255.0)
+test_data = test_datagen.flow_from_directory(test_path,
+                                                   batch_size = 5,
+                                                   target_size = (350,350),
+                                                   class_mode = 'categorical')
+
+print(test_data.class_indices)
+
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+
+base_model = InceptionV3(input_shape = (350, 350, 3), 
+                         include_top = False, 
+                         weights = 'imagenet')
+
+
+for layer in base_model.layers:
+    layer.trainable = False
+
+
+x = layers.Flatten()(base_model.output)
+x = layers.Dense(1024, activation='relu')(x)
+x = layers.Dropout(0.2)(x)
+
+# Add a final sigmoid layer with 4 node for classification output
+x = layers.Dense(4, activation='sigmoid')(x)
+
+model_incep = tf.keras.models.Model(base_model.input, x)
+model_incep.compile(optimizer = tensorflow.keras.optimizers.RMSprop(learning_rate=0.0001), 
+                    loss = 'categorical_crossentropy', 
+                    metrics = ['accuracy'])
+
+mc1 = ModelCheckpoint(
+    filepath="output/ct_incep_best_model.hdf5",
+    monitor= 'val_accuracy', 
+    verbose= 1,
+    save_best_only= True, 
+    mode = 'auto'
+    );
+
+call_back = [mc1];
+
+# Fitting the Model
+incep = model_incep.fit(
+    train_data, 
+    steps_per_epoch = train_data.samples//train_data.batch_size, 
+    epochs = 1, 
+    validation_data = val_data, 
+    validation_steps = val_data.samples//val_data.batch_size,
+    callbacks = call_back 
+    )
+
+model_incep = load_model("output/ct_incep_best_model.hdf5")
+
+def chestScanPrediction(path, _model):
+    classes_dir = ["Adenocarcinoma","Large cell carcinoma","Normal","Squamous cell carcinoma"]
+    # Loading Image
+    img = image.load_img(path, target_size=(350,350))
+    # Normalizing Image
+    norm_img = image.img_to_array(img)/250
+    # Converting Image to Numpy Array
+    input_arr_img = np.array([norm_img])
+    # Getting Predictions
+    pred = np.argmax(_model.predict(input_arr_img))
+    # Printing Model Prediction
+    if classes_dir[pred] =='Normal':
+        print('non lung cancer')
+    else:
+        print('lung cancer')
+        
+path = "dataset/Data/test/normal/6 - Copy (2).png"
+print(chestScanPrediction(path,model_incep))
+
+path = "dataset/Data/test/large.cell.carcinoma/000111.png"
+print(chestScanPrediction(path,model_incep))
+
+y_pred=model_incep.predict(test_data)
+
+print(y_pred)
+
+
+y_pred=y_pred*100
+
+
+print(y_pred)
+
+
+
+from PIL import Image
+import numpy as np
+import tensorflow as tf
+
+# Upload the image file
+
+# Load the uploaded image
+file= 'dataset/Data/test/adenocarcinoma/000108 (3).png'
+#img = Image.open(''/kaggle/input/chest-ctscan-images/Data/test/adenocarcinoma/000108 (3).png')
+img = Image.open(file).convert('RGB').resize((350, 350))
+img = img.resize((350, 350))  # Resize the image to match the input size of your model
+img = np.array(img) / 255.0  # Normalize the image pixel values (if required)
+img = np.expand_dims(img, axis=0)  # Add an extra dimension for batch (if required)
+
+# Load the trained model
+model = tf.keras.models.load_model('output/ct_incep_best_model.hdf5')
+
+# Perform classification
+predictions = model.predict(img)
+predicted_class = np.argmax(predictions[0])  # Get the index of the predicted class
+if predicted_class==2:
+    print("Normal")
+else:
+    print("Lung Cancer")
+plt.imshow(img[0])
+plt.title('Uploaded Image')
+plt.axis('off')
+plt.show()
